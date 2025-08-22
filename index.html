@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SQLite Web DB</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/sql-wasm.js"></script>
+</head>
+<body>
+  <h1>🎶 Playlist Database</h1>
+  
+  <input id="playlistName" placeholder="New Playlist" />
+  <button onclick="addPlaylist()">Add Playlist</button>
+  
+  <h2>Playlists</h2>
+  <ul id="playlistList"></ul>
+  
+  <script>
+    let db;
+
+    async function initDB() {
+      const SQL = await initSqlJs({
+        locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/${file}`
+      });
+
+      if (localStorage.getItem("mydb")) {
+        db = new SQL.Database(
+          Uint8Array.from(atob(localStorage.getItem("mydb")), c => c.charCodeAt(0))
+        );
+      } else {
+        db = new SQL.Database();
+        db.run("CREATE TABLE playlists (id INTEGER PRIMARY KEY, name TEXT);");
+      }
+      renderPlaylists();
+    }
+
+    function saveDB() {
+      const data = db.export();
+      const b64 = btoa(String.fromCharCode.apply(null, data));
+      localStorage.setItem("mydb", b64);
+    }
+
+    function addPlaylist() {
+      const name = document.getElementById("playlistName").value;
+      db.run("INSERT INTO playlists (name) VALUES (?);", [name]);
+      saveDB();
+      renderPlaylists();
+    }
+
+    function renderPlaylists() {
+      const stmt = db.prepare("SELECT * FROM playlists;");
+      const list = document.getElementById("playlistList");
+      list.innerHTML = "";
+      while (stmt.step()) {
+        const row = stmt.getAsObject();
+        const li = document.createElement("li");
+        li.textContent = row.name;
+        list.appendChild(li);
+      }
+      stmt.free();
+    }
+
+    initDB();
+  </script>
+</body>
+</html>
