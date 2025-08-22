@@ -1,18 +1,27 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>SQLite Web DB</title>
+  <title>🎶 Web DB Manager</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/sql-wasm.js"></script>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    input, button { margin: 5px; }
+    .playlist { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+  </style>
 </head>
 <body>
-  <h1>🎶 Playlist Database</h1>
-  
-  <input id="playlistName" placeholder="New Playlist" />
-  <button onclick="addPlaylist()">Add Playlist</button>
-  
+  <h1>🎶 Playlist & Tracks Manager</h1>
+
+  <h2>Add Playlist</h2>
+  <input id="playlistName" placeholder="Playlist name" />
+  <button onclick="addPlaylist()">Add</button>
+
   <h2>Playlists</h2>
-  <ul id="playlistList"></ul>
-  
+  <div id="playlistContainer"></div>
+
+  <button onclick="exportDB()">💾 Export DB</button>
+  <input type="file" id="importFile" onchange="importDB(event)" />
+
   <script>
     let db;
 
@@ -27,7 +36,17 @@
         );
       } else {
         db = new SQL.Database();
-        db.run("CREATE TABLE playlists (id INTEGER PRIMARY KEY, name TEXT);");
+        db.run(`CREATE TABLE playlists (id INTEGER PRIMARY KEY, name TEXT);`);
+        db.run(`CREATE TABLE tracks (
+          id INTEGER PRIMARY KEY,
+          playlist_id INTEGER,
+          track_id TEXT,
+          title TEXT,
+          artist TEXT,
+          preview TEXT,
+          album_cover TEXT,
+          FOREIGN KEY (playlist_id) REFERENCES playlists(id)
+        );`);
       }
       renderPlaylists();
     }
@@ -40,22 +59,74 @@
 
     function addPlaylist() {
       const name = document.getElementById("playlistName").value;
+      if (!name) return;
       db.run("INSERT INTO playlists (name) VALUES (?);", [name]);
       saveDB();
       renderPlaylists();
     }
 
+    function addTrack(playlistId) {
+      const title = prompt("Track Title:");
+      const artist = prompt("Artist:");
+      const track_id = Date.now().toString();
+      const preview = prompt("Preview URL (optional):");
+      const album_cover = prompt("Album Cover URL (optional):");
+
+      db.run(`INSERT INTO tracks 
+        (playlist_id, track_id, title, artist, preview, album_cover) 
+        VALUES (?, ?, ?, ?, ?, ?);`,
+        [playlistId, track_id, title, artist, preview, album_cover]);
+      saveDB();
+      renderPlaylists();
+    }
+
     function renderPlaylists() {
+      const container = document.getElementById("playlistContainer");
+      container.innerHTML = "";
       const stmt = db.prepare("SELECT * FROM playlists;");
-      const list = document.getElementById("playlistList");
-      list.innerHTML = "";
+      while (stmt.step()) {
+        const row = stmt.getAsObject();
+        const div = document.createElement("div");
+        div.className = "playlist";
+        div.innerHTML = `<h3>${row.name}</h3>
+                         <button onclick="addTrack(${row.id})">+ Add Track</button>
+                         <ul id="tracks-${row.id}"></ul>`;
+        container.appendChild(div);
+
+        renderTracks(row.id);
+      }
+      stmt.free();
+    }
+
+    function renderTracks(playlistId) {
+      const stmt = db.prepare("SELECT * FROM tracks WHERE playlist_id = ?;", [playlistId]);
+      const ul = document.getElementById(`tracks-${playlistId}`);
+      ul.innerHTML = "";
       while (stmt.step()) {
         const row = stmt.getAsObject();
         const li = document.createElement("li");
-        li.textContent = row.name;
-        list.appendChild(li);
+        li.innerHTML = `${row.title} - ${row.artist}`;
+        ul.appendChild(li);
       }
       stmt.free();
+    }
+
+    function exportDB() {
+      const data = db.export();
+      const blob = new Blob([data], { type: "application/x-sqlite3" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "music.db";
+      a.click();
+    }
+
+    async function importDB(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const buffer = await file.arrayBuffer();
+      db = new window.SQL.Database(new Uint8Array(buffer));
+      saveDB();
+      renderPlaylists();
     }
 
     initDB();
