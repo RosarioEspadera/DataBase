@@ -1,54 +1,170 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="utf-8" />
   <title>🎶 Web DB Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/sql-wasm.js"></script>
   <style>
-    body { font-family: Arial; margin: 20px; }
-    input, button { margin: 5px; }
-    .playlist { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+    :root { --bg:#0b0f14; --card:#121922; --muted:#8aa0b5; --text:#eaf2fb; --accent:#6ec9ff; --border:#203042; }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial,Apple Color Emoji,Segoe UI Emoji;
+      background:linear-gradient(180deg,#08111a,#0b0f14 40%,#0b0f14);
+      color:var(--text);
+    }
+    header{padding:24px 16px; border-bottom:1px solid var(--border); position:sticky; top:0; background:rgba(11,15,20,.8); backdrop-filter: blur(8px);}
+    h1{margin:0; font-size:24px; font-weight:700; letter-spacing:.2px}
+    main{max-width:1100px; margin:0 auto; padding:24px 16px 80px}
+    .row{display:grid; gap:16px}
+    @media(min-width:900px){ .row{grid-template-columns: 1.2fr .8fr} }
+    .card{
+      background:linear-gradient(180deg,#111723,#0c121a);
+      border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:0 6px 30px rgba(0,0,0,.35);
+    }
+    .card h2{margin:0 0 12px 0; font-size:18px}
+    input, button{
+      font:inherit; color:var(--text);
+      background:#0f1620; border:1px solid var(--border); border-radius:10px;
+      padding:10px 12px;
+    }
+    input::placeholder{color:#7f93a8}
+    button{cursor:pointer; background:linear-gradient(180deg,#1a2533,#19222e); transition:.15s transform}
+    button:hover{transform:translateY(-1px)}
+    .btn{
+      display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:10px;
+    }
+    .btn.primary{background:linear-gradient(180deg,#1e3a5c,#20446b); border-color:#2a4f77}
+    .btn.ghost{background:transparent}
+    .btn.danger{background:linear-gradient(180deg,#3a1e22,#4f262b); border-color:#74343b}
+    .muted{color:var(--muted)}
+    .stack{display:flex; flex-wrap:wrap; gap:10px}
+    .playlist{
+      border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:14px; background:linear-gradient(180deg,#0e1520,#0a1219);
+    }
+    .playlist header{display:flex; align-items:center; justify-content:space-between; position:static; background:transparent; padding:0; border:none}
+    .playlist-title{font-weight:700; font-size:16px}
+    .tracks{margin:10px 0 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:10px}
+    .track{
+      display:grid; grid-template-columns: 40px 1fr auto; gap:10px; align-items:center;
+      border:1px solid var(--border); border-radius:12px; padding:8px 10px; background:#0c121a;
+    }
+    .track img{width:40px; height:40px; object-fit:cover; border-radius:8px; background:#0b0f14; border:1px solid #1a2533}
+    .tmeta{display:flex; flex-direction:column; gap:2px}
+    .tmeta .title{font-weight:600}
+    .tmeta .artist{font-size:12px; color:var(--muted)}
+    .tactions{display:flex; gap:8px}
+    .inline-form{display:grid; gap:8px; grid-template-columns: repeat(4,1fr) 110px; margin-top:10px}
+    .inline-form input{width:100%}
+    .gh{display:grid; gap:8px; grid-template-columns: repeat(2,1fr);}
+    .gh input{width:100%}
+    .gh .wide{grid-column: 1 / -1}
+    .small{font-size:12px}
+    .sep{height:1px; background:var(--border); margin:14px 0}
+    .pill{padding:4px 8px; border:1px solid var(--border); border-radius:999px; font-size:12px; color:var(--muted)}
   </style>
 </head>
 <body>
-  <h1>🎶 Playlist & Tracks Manager</h1>
+  <header>
+    <h1>🎶 Web DB Manager <span class="pill">SQLite (sql.js) + GitHub Sync</span></h1>
+  </header>
 
-  <h2>Add Playlist</h2>
-  <input id="playlistName" placeholder="Playlist name" />
-  <button onclick="addPlaylist()">Add</button>
+  <main class="row">
+    <!-- LEFT: Data -->
+    <section class="card">
+      <h2>Playlists</h2>
 
-  <h2>Playlists</h2>
-  <div id="playlistContainer"></div>
+      <div class="stack" style="margin-bottom:12px">
+        <input id="playlistName" placeholder="New playlist name" />
+        <button class="btn primary" id="addPlaylistBtn">+ Add playlist</button>
+        <button class="btn" id="exportBtn">💾 Export DB</button>
+        <label class="btn ghost" for="importFile">📥 Import DB</label>
+        <input type="file" id="importFile" style="display:none" />
+      </div>
+      <p class="small muted">Data is stored locally (browser) and can be synced with GitHub below.</p>
 
-  <button onclick="exportDB()">💾 Export DB</button>
-  <input type="file" id="importFile" onchange="importDB(event)" />
+      <div id="playlistContainer"></div>
+    </section>
+
+    <!-- RIGHT: GitHub Sync -->
+    <aside class="card">
+      <h2>GitHub Sync</h2>
+      <div class="gh">
+        <input id="ghUser" placeholder="GitHub Username">
+        <input id="ghRepo" placeholder="Repo Name">
+        <input id="ghBranch" placeholder="Branch (main)">
+        <input id="ghFile" placeholder="File (music.db)">
+        <input id="ghToken" class="wide" placeholder="GitHub Token (classic or fine-grained)" type="password">
+      </div>
+      <div class="stack" style="margin-top:10px">
+        <button class="btn" id="downloadBtn">⬇ Download & Merge</button>
+        <button class="btn primary" id="uploadBtn">⬆ Upload Current DB</button>
+      </div>
+      <div class="sep"></div>
+      <p class="small muted">
+        <strong>Merge strategy:</strong> row-level, newest <code>last_modified</code> wins (for playlists & tracks).<br/>
+        For tracks, uniqueness is <code>(playlist_id, track_id)</code>. Your token is used only from your browser.
+      </p>
+    </aside>
+  </main>
 
   <script>
-    let db;
+    // ------------------------------
+    // Helpers
+    // ------------------------------
+    const now = () => Math.floor(Date.now() / 1000);
+    const byId = (id) => document.getElementById(id);
 
-    async function initDB() {
-      const SQL = await initSqlJs({
-        locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/${file}`
-      });
+    // ------------------------------
+    // SQL.js init & schema
+    // ------------------------------
+    let SQL, db;
 
-      if (localStorage.getItem("mydb")) {
-        db = new SQL.Database(
-          Uint8Array.from(atob(localStorage.getItem("mydb")), c => c.charCodeAt(0))
-        );
-      } else {
-        db = new SQL.Database();
-        db.run(`CREATE TABLE playlists (id INTEGER PRIMARY KEY, name TEXT);`);
-        db.run(`CREATE TABLE tracks (
+    const schema = {
+      create: [
+        `CREATE TABLE IF NOT EXISTS playlists (
           id INTEGER PRIMARY KEY,
-          playlist_id INTEGER,
-          track_id TEXT,
-          title TEXT,
-          artist TEXT,
+          name TEXT NOT NULL,
+          last_modified INTEGER DEFAULT (strftime('%s','now'))
+        );`,
+        `CREATE TABLE IF NOT EXISTS tracks (
+          id INTEGER PRIMARY KEY,
+          playlist_id INTEGER NOT NULL,
+          track_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          artist TEXT NOT NULL,
           preview TEXT,
           album_cover TEXT,
-          FOREIGN KEY (playlist_id) REFERENCES playlists(id)
-        );`);
+          last_modified INTEGER DEFAULT (strftime('%s','now')),
+          UNIQUE(playlist_id, track_id),
+          FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+        );`
+      ],
+      migrate: async (db) => {
+        // Ensure last_modified columns exist
+        ensureColumn(db, 'playlists', 'last_modified', "INTEGER", "0");
+        ensureColumn(db, 'tracks', 'last_modified', "INTEGER", "0");
+
+        // Ensure UNIQUE(playlist_id, track_id) on tracks (best effort):
+        // SQLite doesn’t support adding unique constraint easily after fact; skip if already created by our schema.
       }
-      renderPlaylists();
+    };
+
+    function ensureColumn(db, table, column, type, defaultVal) {
+      const cols = execAll(db, `PRAGMA table_info(${table});`);
+      const exists = cols.some(c => c.name === column);
+      if (!exists) {
+        db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${type} DEFAULT ${defaultVal};`);
+      }
+    }
+
+    function execAll(db, sql, params = []) {
+      const stmt = db.prepare(sql);
+      stmt.bind(params);
+      const rows = [];
+      while (stmt.step()) rows.push(stmt.getAsObject());
+      stmt.free();
+      return rows;
     }
 
     function saveDB() {
@@ -57,60 +173,238 @@
       localStorage.setItem("mydb", b64);
     }
 
+    async function initDB() {
+      SQL = await initSqlJs({
+        locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/${file}`
+      });
+
+      const saved = localStorage.getItem("mydb");
+      if (saved) {
+        db = new SQL.Database(Uint8Array.from(atob(saved), c => c.charCodeAt(0)));
+      } else {
+        db = new SQL.Database();
+      }
+
+      // Create tables if not exist
+      schema.create.forEach(ddl => db.run(ddl));
+      schema.migrate(db);
+      saveDB();
+      renderPlaylists();
+    }
+
+    // ------------------------------
+    // CRUD: Playlists
+    // ------------------------------
     function addPlaylist() {
-      const name = document.getElementById("playlistName").value;
+      const name = byId("playlistName").value.trim();
       if (!name) return;
-      db.run("INSERT INTO playlists (name) VALUES (?);", [name]);
+      db.run("INSERT INTO playlists (name, last_modified) VALUES (?, ?);", [name, now()]);
+      byId("playlistName").value = "";
       saveDB();
       renderPlaylists();
     }
 
-    function addTrack(playlistId) {
-      const title = prompt("Track Title:");
-      const artist = prompt("Artist:");
+    function updatePlaylist(id, name) {
+      db.run("UPDATE playlists SET name = ?, last_modified = ? WHERE id = ?;", [name, now(), id]);
+      saveDB();
+      renderPlaylists();
+    }
+
+    function deletePlaylist(id) {
+      // Delete tracks first (in case FK cascade isn’t enforced in this build)
+      db.run("DELETE FROM tracks WHERE playlist_id = ?;", [id]);
+      db.run("DELETE FROM playlists WHERE id = ?;", [id]);
+      saveDB();
+      renderPlaylists();
+    }
+
+    // ------------------------------
+    // CRUD: Tracks
+    // ------------------------------
+    function addTrackFromForm(pid) {
+      const title = byId(`add-title-${pid}`).value.trim();
+      const artist = byId(`add-artist-${pid}`).value.trim();
+      const preview = byId(`add-preview-${pid}`).value.trim();
+      const album_cover = byId(`add-cover-${pid}`).value.trim();
+      if (!title || !artist) return;
+
       const track_id = Date.now().toString();
-      const preview = prompt("Preview URL (optional):");
-      const album_cover = prompt("Album Cover URL (optional):");
 
-      db.run(`INSERT INTO tracks 
-        (playlist_id, track_id, title, artist, preview, album_cover) 
-        VALUES (?, ?, ?, ?, ?, ?);`,
-        [playlistId, track_id, title, artist, preview, album_cover]);
+      db.run(
+        `INSERT INTO tracks (playlist_id, track_id, title, artist, preview, album_cover, last_modified)
+         VALUES (?, ?, ?, ?, ?, ?, ?);`,
+        [pid, track_id, title, artist, preview, album_cover, now()]
+      );
+
+      // Clear form
+      byId(`add-title-${pid}`).value = "";
+      byId(`add-artist-${pid}`).value = "";
+      byId(`add-preview-${pid}`).value = "";
+      byId(`add-cover-${pid}`).value = "";
+
       saveDB();
       renderPlaylists();
     }
 
+    function startEditTrack(id) {
+      const row = execAll(db, "SELECT * FROM tracks WHERE id = ?;", [id])[0];
+      if (!row) return;
+
+      // Replace the LI content with an inline edit form
+      const li = byId(`track-${id}`);
+      li.innerHTML = `
+        <div class="inline-form">
+          <input id="e-title-${id}" placeholder="Title" value="${escapeHtml(row.title)}"/>
+          <input id="e-artist-${id}" placeholder="Artist" value="${escapeHtml(row.artist)}"/>
+          <input id="e-preview-${id}" placeholder="Preview URL" value="${escapeHtml(row.preview || "")}"/>
+          <input id="e-cover-${id}" placeholder="Album cover URL" value="${escapeHtml(row.album_cover || "")}"/>
+          <span class="stack">
+            <button class="btn primary" onclick="saveEditTrack(${id})">Save</button>
+            <button class="btn ghost" onclick="renderPlaylists()">Cancel</button>
+          </span>
+        </div>`;
+    }
+
+    function saveEditTrack(id) {
+      const title = byId(`e-title-${id}`).value.trim();
+      const artist = byId(`e-artist-${id}`).value.trim();
+      const preview = byId(`e-preview-${id}`).value.trim();
+      const album_cover = byId(`e-cover-${id}`).value.trim();
+      if (!title || !artist) return;
+
+      db.run(
+        `UPDATE tracks SET title = ?, artist = ?, preview = ?, album_cover = ?, last_modified = ? WHERE id = ?;`,
+        [title, artist, preview, album_cover, now(), id]
+      );
+      saveDB();
+      renderPlaylists();
+    }
+
+    function deleteTrack(id) {
+      db.run("DELETE FROM tracks WHERE id = ?;", [id]);
+      saveDB();
+      renderPlaylists();
+    }
+
+    // ------------------------------
+    // Render
+    // ------------------------------
     function renderPlaylists() {
-      const container = document.getElementById("playlistContainer");
+      const container = byId("playlistContainer");
       container.innerHTML = "";
-      const stmt = db.prepare("SELECT * FROM playlists;");
-      while (stmt.step()) {
-        const row = stmt.getAsObject();
-        const div = document.createElement("div");
-        div.className = "playlist";
-        div.innerHTML = `<h3>${row.name}</h3>
-                         <button onclick="addTrack(${row.id})">+ Add Track</button>
-                         <ul id="tracks-${row.id}"></ul>`;
-        container.appendChild(div);
 
-        renderTracks(row.id);
+      const playlists = execAll(db, "SELECT * FROM playlists ORDER BY id DESC;");
+      for (const p of playlists) {
+        const wrap = document.createElement("div");
+        wrap.className = "playlist";
+
+        const header = document.createElement("header");
+        const title = document.createElement("div");
+        title.className = "playlist-title";
+        title.textContent = p.name;
+
+        const actions = document.createElement("div");
+        actions.className = "tactions";
+        const editBtn = btn("✏️ Edit", "btn");
+        editBtn.onclick = () => inlineEditPlaylist(wrap, p);
+        const delBtn = btn("🗑 Delete", "btn danger");
+        delBtn.onclick = () => {
+          if (confirm(`Delete playlist "${p.name}"? This also deletes its tracks.`)) deletePlaylist(p.id);
+        };
+        actions.append(editBtn, delBtn);
+
+        header.append(title, actions);
+
+        // Tracks list
+        const list = document.createElement("ul");
+        list.className = "tracks";
+        list.id = `tracks-${p.id}`;
+
+        // Query tracks
+        const tracks = execAll(db, "SELECT * FROM tracks WHERE playlist_id = ? ORDER BY id DESC;", [p.id]);
+        tracks.forEach(t => list.appendChild(trackRow(t)));
+
+        // Add-track inline form
+        const addForm = document.createElement("div");
+        addForm.className = "inline-form";
+        addForm.innerHTML = `
+          <input id="add-title-${p.id}" placeholder="Track title" />
+          <input id="add-artist-${p.id}" placeholder="Artist" />
+          <input id="add-preview-${p.id}" placeholder="Preview URL (optional)" />
+          <input id="add-cover-${p.id}" placeholder="Album cover URL (optional)" />
+          <button class="btn primary" onclick="addTrackFromForm(${p.id})">+ Add Track</button>
+        `;
+
+        wrap.append(header, list, addForm);
+        container.appendChild(wrap);
       }
-      stmt.free();
     }
 
-    function renderTracks(playlistId) {
-      const stmt = db.prepare("SELECT * FROM tracks WHERE playlist_id = ?;", [playlistId]);
-      const ul = document.getElementById(`tracks-${playlistId}`);
-      ul.innerHTML = "";
-      while (stmt.step()) {
-        const row = stmt.getAsObject();
-        const li = document.createElement("li");
-        li.innerHTML = `${row.title} - ${row.artist}`;
-        ul.appendChild(li);
-      }
-      stmt.free();
+    function inlineEditPlaylist(container, p) {
+      container.querySelector("header").innerHTML = `
+        <div class="stack" style="width:100%">
+          <input id="pl-edit-${p.id}" value="${escapeHtml(p.name)}" style="flex:1" />
+          <button class="btn primary" onclick="updatePlaylist(${p.id}, byId('pl-edit-${p.id}').value.trim())">Save</button>
+          <button class="btn ghost" onclick="renderPlaylists()">Cancel</button>
+        </div>`;
     }
 
+    function trackRow(t) {
+      const li = document.createElement("li");
+      li.className = "track";
+      li.id = `track-${t.id}`;
+
+      const img = document.createElement("img");
+      img.src = t.album_cover || "";
+      img.alt = "";
+
+      const meta = document.createElement("div");
+      meta.className = "tmeta";
+      const title = document.createElement("div");
+      title.className = "title";
+      title.textContent = t.title;
+      const artist = document.createElement("div");
+      artist.className = "artist";
+      artist.textContent = t.artist;
+      if (t.preview) {
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.src = t.preview;
+        audio.style.height = "24px";
+        audio.style.marginTop = "4px";
+        meta.append(title, artist, audio);
+      } else {
+        meta.append(title, artist);
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "tactions";
+      const e = btn("✏️", "btn");
+      e.title = "Edit";
+      e.onclick = () => startEditTrack(t.id);
+      const d = btn("🗑", "btn danger");
+      d.title = "Delete";
+      d.onclick = () => { if (confirm(`Delete "${t.title}"?`)) deleteTrack(t.id); };
+      actions.append(e, d);
+
+      li.append(img, meta, actions);
+      return li;
+    }
+
+    function btn(text, cls) {
+      const b = document.createElement("button");
+      b.className = cls;
+      b.textContent = text;
+      return b;
+    }
+
+    function escapeHtml(s) {
+      return (s ?? "").toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // ------------------------------
+    // Export / Import
+    // ------------------------------
     function exportDB() {
       const data = db.export();
       const blob = new Blob([data], { type: "application/x-sqlite3" });
@@ -120,15 +414,156 @@
       a.click();
     }
 
-    async function importDB(event) {
-      const file = event.target.files[0];
+    async function importDB(evt) {
+      const file = evt.target.files[0];
       if (!file) return;
       const buffer = await file.arrayBuffer();
-      db = new window.SQL.Database(new Uint8Array(buffer));
+      db = new SQL.Database(new Uint8Array(buffer));
+      // Ensure schema bits
+      schema.create.forEach(ddl => db.run(ddl));
+      schema.migrate(db);
       saveDB();
       renderPlaylists();
     }
 
+    // ------------------------------
+    // GitHub Sync (Merge)
+    // ------------------------------
+    async function uploadToGitHub() {
+      const { user, repo, branch, file, token } = ghInputs();
+      if (!user || !repo || !token) {
+        alert("Please fill GitHub username, repo, and token.");
+        return;
+      }
+
+      // Export current DB
+      const data = db.export();
+      const content = btoa(String.fromCharCode.apply(null, data));
+
+      // Find existing SHA (if any)
+      let sha = null;
+      const head = await fetch(`https://api.github.com/repos/${user}/${repo}/contents/${file}?ref=${branch}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (head.ok) {
+        const json = await head.json();
+        sha = json.sha || null;
+      }
+
+      const body = {
+        message: "Update music.db",
+        content,
+        branch,
+        ...(sha ? { sha } : {})
+      };
+
+      const resp = await fetch(`https://api.github.com/repos/${user}/${repo}/contents/${file}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (resp.ok) {
+        alert("✅ Uploaded to GitHub!");
+      } else {
+        const error = await resp.json().catch(()=>({message:"Unknown error"}));
+        alert("❌ Upload failed: " + (error.message || JSON.stringify(error)));
+      }
+    }
+
+    async function downloadAndMergeFromGitHub() {
+      const { user, repo, branch, file, token } = ghInputs();
+      if (!user || !repo || !token) {
+        alert("Please fill GitHub username, repo, and token.");
+        return;
+      }
+
+      const res = await fetch(
+        `https://api.github.com/repos/${user}/${repo}/contents/${file}?ref=${branch}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) {
+        alert("❌ Download failed (check repo/file/branch/token).");
+        return;
+      }
+      const json = await res.json();
+      const base64 = (json.content || "").replace(/\n/g, "");
+      const bin = atob(base64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+
+      // Create temp DB from remote
+      const remote = new SQL.Database(arr);
+
+      // Ensure remote has expected tables (skip if not)
+      try { execAll(remote, "SELECT 1 FROM playlists LIMIT 1;"); } catch { alert("Remote DB missing 'playlists' table."); return; }
+      try { execAll(remote, "SELECT 1 FROM tracks LIMIT 1;"); } catch { alert("Remote DB missing 'tracks' table."); return; }
+
+      // Merge Playlists: by id; newest last_modified wins
+      const rPlaylists = execAll(remote, "SELECT * FROM playlists;");
+      for (const rp of rPlaylists) {
+        const lp = execAll(db, "SELECT * FROM playlists WHERE id = ?;", [rp.id])[0];
+        if (!lp) {
+          db.run("INSERT INTO playlists (id, name, last_modified) VALUES (?, ?, ?);", [rp.id, rp.name, rp.last_modified || 0]);
+        } else {
+          const rl = Number(rp.last_modified || 0), ll = Number(lp.last_modified || 0);
+          if (rl > ll) {
+            db.run("UPDATE playlists SET name = ?, last_modified = ? WHERE id = ?;", [rp.name, rl, rp.id]);
+          }
+        }
+      }
+
+      // Merge Tracks: uniqueness (playlist_id, track_id); newest wins
+      const rTracks = execAll(remote, "SELECT * FROM tracks;");
+      for (const rt of rTracks) {
+        const lt = execAll(db, "SELECT * FROM tracks WHERE playlist_id = ? AND track_id = ?;", [rt.playlist_id, rt.track_id])[0];
+        if (!lt) {
+          db.run(
+            `INSERT INTO tracks (playlist_id, track_id, title, artist, preview, album_cover, last_modified)
+             VALUES (?, ?, ?, ?, ?, ?, ?);`,
+            [rt.playlist_id, rt.track_id, rt.title, rt.artist, rt.preview, rt.album_cover, rt.last_modified || 0]
+          );
+        } else {
+          const rl = Number(rt.last_modified || 0), ll = Number(lt.last_modified || 0);
+          if (rl > ll) {
+            db.run(
+              `UPDATE tracks SET title = ?, artist = ?, preview = ?, album_cover = ?, last_modified = ?
+               WHERE playlist_id = ? AND track_id = ?;`,
+              [rt.title, rt.artist, rt.preview, rt.album_cover, rl, rt.playlist_id, rt.track_id]
+            );
+          }
+        }
+      }
+
+      // Save & re-render
+      saveDB();
+      renderPlaylists();
+      alert("✅ Merged latest DB from GitHub!");
+    }
+
+    function ghInputs() {
+      return {
+        user: byId("ghUser").value.trim(),
+        repo: byId("ghRepo").value.trim(),
+        branch: byId("ghBranch").value.trim() || "main",
+        file: byId("ghFile").value.trim() || "music.db",
+        token: byId("ghToken").value.trim()
+      };
+    }
+
+    // ------------------------------
+    // Wire up UI
+    // ------------------------------
+    byId("addPlaylistBtn").onclick = addPlaylist;
+    byId("exportBtn").onclick = exportDB;
+    byId("importFile").onchange = importDB;
+    byId("uploadBtn").onclick = uploadToGitHub;
+    byId("downloadBtn").onclick = downloadAndMergeFromGitHub;
+
+    // Kickoff
     initDB();
   </script>
 </body>
